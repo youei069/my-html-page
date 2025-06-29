@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>カスタマイズ可能なQRキューブ</title>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+      font-family: sans-serif;
+      user-select: none;
+      touch-action: none;
+    }
+    .site-name-container {
+      display: flex;
+      align-items: center;
+      font-size: 20px;
+      font-weight: bold;
+      color: #222;
+      margin: 10px 0;
+    }
+    .arrow {
+      cursor: pointer;
+      font-size: 20px;
+      margin: 0 10px;
+    }
+    .scene {
+      width: 200px;
+      height: 200px;
+      position: relative;
+      transform-style: preserve-3d;
+      cursor: grab;
+      transform: rotateX(0deg) rotateY(0deg);
+    }
+    .scene:active {
+      cursor: grabbing;
+    }
+    .face {
+      position: absolute;
+      width: 200px;
+      height: 200px;
+      background: #fff;
+      border: 2px solid #333;
+      box-sizing: border-box;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .face img {
+      width: 150px;
+      height: 150px;
+    }
+    .front  { transform: translateZ(100px); }
+    .back   { transform: rotateY(180deg) translateZ(100px); }
+    .right  { transform: rotateY(90deg) translateZ(100px); }
+    .left   { transform: rotateY(-90deg) translateZ(100px); }
+    .top    { transform: rotateX(90deg) translateZ(100px); }
+    .bottom { transform: rotateX(-90deg) translateZ(100px); }
+    form {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    form input {
+      margin: 5px;
+      width: 250px;
+      padding: 5px;
+    }
+    form button {
+      padding: 5px 15px;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <form id="qrForm">
+    <input type="text" placeholder="面1のURL (Googleなど)" id="url0">
+    <input type="text" placeholder="面2のURL" id="url1">
+    <input type="text" placeholder="面3のURL" id="url2">
+    <input type="text" placeholder="面4のURL" id="url3">
+    <input type="text" placeholder="面5のURL" id="url4">
+    <input type="text" placeholder="面6のURL" id="url5">
+    <button type="submit">QRコードを更新</button>
+  </form>
+
+  <div class="site-name-container">
+    <span class="arrow" id="arrowLeft">⬅️</span>
+    <span id="siteName"></span>
+    <span class="arrow" id="arrowRight">➡️</span>
+  </div>
+  <div class="scene" id="cube">
+    <div class="face front"><img id="qr0" src="" alt="QR 0" style="display:none"></div>
+    <div class="face back"><img id="qr1" src="" alt="QR 1" style="display:none"></div>
+    <div class="face right"><img id="qr2" src="" alt="QR 2" style="display:none"></div>
+    <div class="face left"><img id="qr3" src="" alt="QR 3" style="display:none"></div>
+    <div class="face top"><img id="qr4" src="" alt="QR 4" style="display:none"></div>
+    <div class="face bottom"><img id="qr5" src="" alt="QR 5" style="display:none"></div>
+  </div>
+
+  <script>
+    const cube = document.getElementById('cube');
+    const siteName = document.getElementById('siteName');
+    const arrowLeft = document.getElementById('arrowLeft');
+    const arrowRight = document.getElementById('arrowRight');
+    const form = document.getElementById('qrForm');
+
+    const siteInputs = [...Array(6)].map((_, i) => document.getElementById(`url${i}`));
+    const qrImgs = [...Array(6)].map((_, i) => document.getElementById(`qr${i}`));
+    let siteNames = ["", "", "", "", "", ""];
+
+    function updateSiteName(index) {
+      siteName.textContent = siteNames[index] || "";
+    }
+
+    let isDragging = false;
+    let startX = 0, startY = 0;
+    let previousX = 0, previousY = 0;
+    let rotationX = 0, rotationY = 0;
+    let velocityX = 0, velocityY = 0;
+    let startTime = 0;
+    const friction = 0.88;
+    let currentIndex = 0;
+
+    function rotateTo(index) {
+      currentIndex = (index + 6) % 6;
+      if (currentIndex < 4) {
+        rotationX = 0;
+        rotationY = currentIndex * 90;
+      } else if (currentIndex === 4) {
+        rotationX = -90;
+        rotationY = 0;
+      } else {
+        rotationX = 90;
+        rotationY = 0;
+      }
+      cube.style.transition = 'transform 0.4s ease';
+      cube.style.transform = `rotateX(${rotationX}deg) rotateY(${rotationY}deg)`;
+      updateSiteName(currentIndex);
+    }
+
+    arrowLeft.addEventListener('click', () => rotateTo(currentIndex - 1));
+    arrowRight.addEventListener('click', () => rotateTo(currentIndex + 1));
+
+    function onPointerDown(e) {
+      isDragging = true;
+      startX = previousX = e.clientX;
+      startY = previousY = e.clientY;
+      startTime = performance.now();
+      velocityX = 0;
+      velocityY = 0;
+      cube.style.transition = 'none';
+    }
+
+    function onPointerMove(e) {
+      if (!isDragging) return;
+      const deltaX = e.clientX - previousX;
+      const deltaY = e.clientY - previousY;
+      rotationY += deltaX * 0.3;
+      rotationX -= deltaY * 0.3;
+      cube.style.transform = `rotateX(${rotationX}deg) rotateY(${rotationY}deg)`;
+      previousX = e.clientX;
+      previousY = e.clientY;
+    }
+
+    function onPointerUp(e) {
+      if (!isDragging) return;
+      isDragging = false;
+      const endTime = performance.now();
+      const elapsed = (endTime - startTime) / 1000;
+      const totalDeltaX = e.clientX - startX;
+      const totalDeltaY = e.clientY - startY;
+      velocityX = totalDeltaX / elapsed;
+      velocityY = totalDeltaY / elapsed;
+      requestAnimationFrame(inertiaRotate);
+    }
+
+    function inertiaRotate() {
+      if (isDragging) return;
+      velocityX *= friction;
+      velocityY *= friction;
+      rotationY += velocityX * 0.035;
+      rotationX -= velocityY * 0.035;
+      cube.style.transform = `rotateX(${rotationX}deg) rotateY(${rotationY}deg)`;
+      if (Math.abs(velocityX) > 0.1 || Math.abs(velocityY) > 0.1) {
+        requestAnimationFrame(inertiaRotate);
+      }
+    }
+
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      for (let i = 0; i < 6; i++) {
+        const url = siteInputs[i].value.trim();
+        if (url) {
+          qrImgs[i].src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(url)}&color=${['FF0000','0000FF','00AA00','FFAA00','800080','008080'][i]}`;
+          qrImgs[i].style.display = 'block';
+
+          // タイトルを取得
+          try {
+            const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`);
+            const html = await res.text();
+            const match = html.match(/<title>(.*?)<\/title>/i);
+            siteNames[i] = match ? match[1] : new URL(url).hostname;
+          } catch {
+            siteNames[i] = new URL(url).hostname;
+          }
+        } else {
+          qrImgs[i].src = '';
+          qrImgs[i].style.display = 'none';
+          siteNames[i] = "";
+        }
+      }
+      updateSiteName(currentIndex);
+    });
+
+    rotateTo(0);
+    cube.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointerleave', onPointerUp);
+  </script>
+</body>
+</html>
